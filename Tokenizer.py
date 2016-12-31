@@ -1,26 +1,37 @@
 import re
 from JackTokens import JackTokens as JTok
+from xml.etree.ElementTree import Element, SubElement, Comment, tostring
 
 
 class Tokenizer:
     """
 
     """
-
-    comment_pat = re.compile(r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"')
-    keyWord_pat = re.compile(r'class|constructor|function|method|field|static|'
-                             r'var|int|char|boolean|void|true|false|null|this|let|do|if|else|while|return')
-    symbol_pat = re.compile(r'(.*)(\\{|\\}|\\(|\\)|\\[|\\]|\\.|\\,|;|\\+|-|\\*|/|&|\\||<|>|=|~)(.*)')
-    iden_pat= re.compile(r'^[\d]')#TODO
-    int_pat = re.compile(r'[0-32767]')#TODO
-    str_pat = re.compile(r'^\"[^\"]+\"$')#TODO
+    #TODO: handle comments
+    word_pat = re.compile(r'[a-zA-Z_][\w_]*')
+    int_pat = re.compile(r'\d+')
+    str_pat = re.compile(r'^\".*\"$')
+    KEYWORDS = {'class','constructor','function','method','field','static','var','int','char','boolean',
+                'void','true','false','null','this','let','do','if','else','while','return'}
+    SYMBOLS = {'{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&','|',
+               '<', '>', '=', '-'}
 
     def __init__(self, file_path):
         self.file = open(file_path)
-        self.curr_line = ''
-        self.curr_token = ''
+        self.char = ''
+        self.peek = self.file.read(1)
+        self.current_token = None
+        self.current_type = None
 
-    def advance(self):#TODO
+    def next_char(self): #TODO: Add buffer?
+        """
+        Reads next char in file.
+        :return:
+        """
+        self.char = self.peek
+        self.peek = self.file.read(1)
+
+    def advance(self):#
         """
         Gets the next token from the input
         and makes it the current token. This
@@ -29,34 +40,75 @@ class Tokenizer:
         there is no current token.
         :return:
         """
-        # if not self.has_more_tokens:
-        #     return
-        # else:
+        self.current_token = self.char
+        if self.current_token in self.SYMBOLS: #TODO: a patch, might not be good enough
+            return
+        while (self.peek not in self.SYMBOLS) and (not self.peek.isspace()):
+            self.next_char()
+            self.current_token += self.char
 
-        self.curr_line = self.file.readline()
-        self.curr_line.replace(" ", "")
+        #
+        # if self.char.isalpha():
+        #     s = self.char
+        #     # while not self.peek.whitespace() or not (self.peek in self.SYMBOLS)
+        # elif self.char in self.SYMBOLS:
+        #     self.current_token = self.char
+        # elif self.char == "\"":
+        #     self.current_token = ""
+        #     while self.char != "\"":
+        #         self.current_token += self.char
+        #         self.next_char()
+        #     self.current_token += self.char
+        # elif self.char.isdigit():
+        #     self.current_token = ""
+        #     while self.char.isdigit():
+        #         self.current_token += self.char
+        #         self.next_char()
 
-    def has_more_tokens(self):#TODO
+
+
+
+    def has_more_tokens(self):#TODO: Changes state, might not be good
         """
         Do we have more tokens in the input?
         :return:
         """
-        pass
+        if self.char == '/':
+            if self.peek == '/':
+
+                while self.char != '\n':
+                    print(self.char)
+                    self.next_char()
+            elif self.peek == "*":
+                self.next_char()
+                self.next_char()
+                while not (self.char == '*' and self.peek == '/'):
+                    self.next_char()
+        if self.peek == '':
+            return False
+        self.next_char()
+        while self.char.isspace():
+            if self.peek == '':
+                return False
+            self.next_char()
+        return True
+
 
     def token_type(self):
         """
         Returns the type of the current token.
         :return:
         """
-        if self.keyWord_pat.match(self.curr_token):
-            return JTok.KEYWORD
-        elif self.symbol_pat.match(self.curr_token):
+        if self.word_pat.match(self.current_token):
+            if self.current_token in self.KEYWORDS:
+                return JTok.KEYWORD
+            else:
+                return JTok.IDENTIFIER
+        elif self.current_token in self.SYMBOLS:
             return JTok.SYMBOL
-        elif self.iden_pat.match(self.curr_token):
-            return JTok.IDENTIFIER
-        elif self.int_pat.match(self.curr_token):
+        elif self.int_pat.match(self.current_token):
             return JTok.INT_CONST
-        elif self.str_pat.match(self.curr_token):
+        elif self.str_pat.match(self.current_token):
             return JTok.STRING_CONST
         else:
             return JTok.ERROR
@@ -68,170 +120,72 @@ class Tokenizer:
         when tokenType() is KEYWORD .
         :return:
         """
-        if self.token_type() != JTok.KEYWORD:
-            return JTok.ERROR
+        return self.current_token
 
-        if self.curr_token is "class" :
-            return JTok.CLASS
-        elif self.curr_token is "method":
-            return JTok.METHOD
-        elif self.curr_token is "function":
-            return JTok.FUNCTION
-        elif self.curr_token is "constructor":
-            return JTok.CONSTRUCTOR
-        elif self.curr_token is "int":
-            return JTok.INT
-        elif self.curr_token is "boolean":
-            return JTok.BOOLEAN
-        elif self.curr_token is "char":
-            return JTok.CHAR
-        elif self.curr_token is "void":
-            return JTok.VOID
-        elif self.curr_token is "var":
-            return JTok.VAR
-        elif self.curr_token is "static":
-            return JTok.STATIC
-        elif self.curr_token is "field":
-            return JTok.FIELD
-        elif self.curr_token is "let":
-            return JTok.LET
-        elif self.curr_token is "do":
-            return JTok.DO
-        elif self.curr_token is "if":
-            return JTok.IF
-        elif self.curr_token is "else":
-            return JTok.ELSE
-        elif self.curr_token is "while":
-            return JTok.WHILE
-        elif self.curr_token is "return":
-            return JTok.RETURN
-        elif self.curr_token is "true":
-            return JTok.TRUE
-        elif self.curr_token is "false":
-            return JTok.FALSE
-        elif self.curr_token is "null":
-            return JTok.NULL
-        elif self.curr_token is "this":
-            return JTok.THIS
-        else:
-            return JTok.ERROR
-
-    def symbol(self):  #TODO
+    def symbol(self):
         """
         Returns the character which is the
         current token. Should be called only
         when tokenType() is SYMBOL .
         :return:
         """
-        if self.token_type() != JTok.SYMBOL:
-            return JTok.ERROR
-        else:
-            if self.curr_token is "<":
-                return "&lt;"
-            elif self.curr_token is ">":
-                return "&gt;"
-            elif self.curr_token is "&":
-                return "&amp;"
-            else:
-                return str(self.curr_token)
+        return self.current_token
 
-    def identifier(self): #TODO
+    def identifier(self):
         """
         Returns the identifier which is the
         current token. Should be called only
         when tokenType() is IDENTIFIER .
         :return:
         """
-        if self.token_type() != JTok.IDENTIFIER:
-            return JTok.ERROR
-        else:
-            return self.curr_token
+        return self.current_token
 
-    def intVal(self):  #TODO
+    def intVal(self):
         """
         Returns the integer value of the
         current token. Should be called only
         when tokenType() is INT_CONST .
         :return:
         """
-        if self.token_type() != JTok.INT_CONST:
-            return JTok.ERROR
-        else:
-            return str(self.curr_token)
+        return int(self.current_token)
 
-    def string_val(self):  #TODO
+    def string_val(self):
         """
         Returns the string value of the current
         token, without the double quotes.
         Should be called only when
         tokenType() is STRING_CONST .
         """
-        if self.token_type() != JTok.STRING_CONST:
-            return JTok.ERROR
-        else:
-            return
+        return self.current_token[1:-1]
 
-    def is_comment(self, string_to_check):
-        """
-        helping func
-        :param string_to_check:
-        :return:
-        """
-        return self.comment_pat.match(string_to_check)
-
-    def write_tag(self, output, word, curr_type):
-        """
-        :param output:
-        :param word:
-        :param curr_type:
-        :return:
-        """
-        output.print("<" + curr_type + "> " + word + " </" + curr_type + ">")
-
-    def create_xml(self, output):
-        """
-
-        :param output:
-        :return:
-        """
-
-        output.print("<tokens>")
-
-        while self.has_more_tokens():
-
-            self.advance()
-
-            curr_type = self.token_type()
-
-            if curr_type == JTok.KEYWORD:
-                self.write_tag(output, self.curr_token, "keyword")
-
-            elif curr_type == JTok.SYMBOL:
-                self.write_tag(output, self.symbol(), "symbol")
-
-            elif curr_type == JTok.IDENTIFIER:
-                self.write_tag(output, self.identifier(), "identifier")
-
-            elif curr_type == JTok.INT_CONST:
-                self.write_tag(output, str(self.intVal()), "integerConstant")
-
-            elif curr_type == JTok.STRING_CONST:
-                self.write_tag(output, self.string_val(), "stringConstant")
-
-            else:
-                self.write_tag(output, "ERROR", "error")
-
-            output.print("</tokens>")
 
 
 def main():
-    myT = Tokenizer('/home/ofir/Desktop/CS/Nand/ex10/Mytestfor10.jack')
-    myT.advance()
+    path = '/home/ofer/PycharmProjects/ex10/Mytestfor10.jack'
+    myT = Tokenizer(path)
+    print('.' not in myT.SYMBOLS)
+    tokens = Element('tokens')
+    while(myT.has_more_tokens()):
+        myT.advance()
+        type = myT.token_type()
+        if type is JTok.KEYWORD:
+            curr_elem = SubElement(tokens,"keyword")
+            curr_elem.text = myT.key_word()
+        elif type is JTok.IDENTIFIER:
+            curr_elem = SubElement(tokens, "identifier")
+            curr_elem.text = myT.identifier()
+        elif type is JTok.INT_CONST:
+            curr_elem = SubElement(tokens, "integerConstant")
+            curr_elem.text = str(myT.intVal())
+        elif type is JTok.STRING_CONST:
+            curr_elem = SubElement(tokens, "stringConstant")
+            curr_elem.text = str(myT.string_val())
+        elif type is JTok.SYMBOL:
+            curr_elem = SubElement(tokens, "symbol")
+            curr_elem.text = str(myT.symbol())
+    print(tostring(tokens))
+    open(path[:-4]+"xml",'w').write(tostring(tokens).decode())
 
-    if myT.keyWord_pat.match(myT.curr_line)or myT.comment_pat.match(myT.curr_line):
-        print(myT.curr_line)
-    else:
-        print("no" + myT.curr_line)
 
 if __name__ == main():
     main()
