@@ -147,7 +147,6 @@ class Tokenizer:
         return self.current_token[1:-1]
 
 
-
 def main():
     path = '/home/ofer/nand2tetris/projects/10/Square/SquareGame.jack'
     myT = Tokenizer(path)
