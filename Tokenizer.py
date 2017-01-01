@@ -14,6 +14,10 @@ class Tokenizer:
                 'void','true','false','null','this','let','do','if','else','while','return'}
     SYMBOLS = {'{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&','|',
                '<', '>', '=', '-', '~'}
+    already_called = False
+    more_tokens_flag = False
+    queue = []
+    lookback_index = -1
 
     def __init__(self, file_path):
         self.file = open(file_path)
@@ -39,6 +43,10 @@ class Tokenizer:
         there is no current token.
         :return:
         """
+        if self.lookback_index < -1:
+            self.lookback_index +=1
+            self.current_type, self.current_token = self.queue[self.lookback_index]
+        self.already_called = False
         if self.char.isalpha(): # keyword or identifier
             self.current_token = self.char
             while (self.peek not in self.SYMBOLS) and (not self.peek.isspace() and (self.peek != '')):
@@ -65,15 +73,22 @@ class Tokenizer:
                 self.next_char()
                 self.current_token += self.char
             self.current_type = JTok.INT_CONST
+        self.queue.append((self.current_type, self.current_token))
+        if len(self.queue) >=3:
+            self.queue.pop(0)
 
     def has_more_tokens(self):
         """
         Do we have more tokens in the input?
         :return:
         """
+        if self.lookback_index < -1:
+            return True
+        if self.already_called:
+            return self.more_tokens_flag
         if self.peek == '':
-            return False
-        if self.peek == '/':
+            self.more_tokens_flag = False
+        elif self.peek == '/':
             self.next_char()
             if self.peek == '/':
                 while self.char != '\n':
@@ -85,14 +100,17 @@ class Tokenizer:
                     self.next_char()
                 self.next_char()
             else:
-                return True
+                self.more_tokens_flag = True
             return self.has_more_tokens()
-        if self.peek.isspace():
+        elif self.peek.isspace():
             while self.peek.isspace():
                 self.next_char()
             return self.has_more_tokens()
-        self.next_char()
-        return True
+        else:
+            self.next_char()
+            self.more_tokens_flag = True
+        self.already_called = True
+        return self.more_tokens_flag
 
     def token_type(self):
         """
@@ -146,38 +164,11 @@ class Tokenizer:
         """
         return self.current_token[1:-1]
 
-
-def main():
-    path = '/home/ofer/nand2tetris/projects/10/Square/SquareGame.jack'
-    myT = Tokenizer(path)
-    print('.' not in myT.SYMBOLS)
-    tokens = Element('tokens')
-    while(myT.has_more_tokens()):
-        myT.advance()
-        type = myT.token_type()
-        if type is JTok.KEYWORD:
-            curr_elem = SubElement(tokens,"keyword")
-            curr_elem.text = " "+myT.key_word()+" "
-        elif type is JTok.IDENTIFIER:
-            curr_elem = SubElement(tokens, "identifier")
-            curr_elem.text = " "+myT.identifier()+" "
-        elif type is JTok.INT_CONST:
-            curr_elem = SubElement(tokens, "integerConstant")
-            curr_elem.text = " "+str(myT.intVal())+" "
-        elif type is JTok.STRING_CONST:
-            curr_elem = SubElement(tokens, "stringConstant")
-            curr_elem.text = " "+str(myT.string_val())+" "
-        elif type is JTok.SYMBOL:
-            curr_elem = SubElement(tokens, "symbol")
-            curr_elem.text = " "+str(myT.symbol())+" "
-    print(tostring(tokens))
-    open(path[:-4]+"xml",'w').write(tostring(tokens).decode())
-
-
-if __name__ == main():
-    main()
-
-
-
-
-
+    def set_back(self):
+        """
+        Move back tokenizer 1 token
+        :param n:
+        :return:
+        """
+        self.lookback_index = -2
+        self.current_type, self.current_token = self.queue[self.lookback_index]
