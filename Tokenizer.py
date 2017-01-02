@@ -101,6 +101,7 @@ class Tokenizer:
                 self.next_char()
             else:
                 self.more_tokens_flag = True
+                return True
             return self.has_more_tokens()
         elif self.peek.isspace():
             while self.peek.isspace():
