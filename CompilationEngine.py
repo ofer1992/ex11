@@ -24,17 +24,21 @@ class CompilationEngine:
     operators = {'+':'+','-':'-', '*':'*', '/':'/','&':'&amp;','|':'|','<':'&lt;','>':'&gt;','=':'='}
 
     def __init__(self, source):  # TODO activate parsing?
-        self.outFileName = source[:-5] + ".xml"
-        self.outFile = open(self.outFileName, 'w')
-        # Create Tokenizer
         self.tokenizer = Tokenizer(source)
         self.tokenizer.has_more_tokens()
         self.tokenizer.advance()
+        self.root = Element("class")
+        #self.compile_class(self.root)
+
         # Close file stream
+        #self.outFile.close()
 
     def next(self):
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
+
+    def get_xml(self):
+        return tostring(self.root)
 
     def is_op(self, symbol):
         return symbol in self.operators
@@ -288,8 +292,30 @@ class CompilationEngine:
 
         self.compile_list_of_vars(caller)
 
-    def compile_class(self):
-        return
+    def compile_class(self,caller):
+        """
+
+        :param caller:
+        :return:
+        """
+        SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
+        self.next()
+
+        SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        self.next()
+
+        SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
+        self.next()
+
+        while self.tokenizer.token_type() is JTok.IDENTIFIER and self.tokenizer.key_word() in {'static','field'}:
+            self.compile_classVarDec(SubElement(caller,"classVarDec"))
+
+        while not self.tokenizer.token_type() is JTok.SYMBOL:
+            self.compile_subroutine(SubElement(caller,"subroutineDec"))
+
+        SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #}
+        self.next()
+
 
     def compile_list_of_vars(self,caller):
         """
@@ -339,7 +365,51 @@ class CompilationEngine:
         self.next()
 
     def compile_subroutine(self,caller):
-        return
+        """
+
+        :param caller:
+        :return:
+        """
+        SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
+        self.next()
+
+        if self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "void":
+            SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
+            self.next()
+        else:
+            self.compile_type(caller)
+
+        SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        self.next()
+
+        SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+        self.next()
+
+        self.compile_parameterList(SubElement(caller,"parameterList"))
+
+        SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+        self.next()
+
+        self.compile_subroutineBody(SubElement(caller,"subroutineBody"))
+
+
+
+    def compile_subroutineBody(self,caller):
+        """
+        Compiles a subroutine body
+        :param caller:
+        :return:
+        """
+        SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
+        self.next()
+
+        while self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "var":
+            self.compile_var_dec(SubElement(caller,"varDec"))
+
+        self.compile_statements(SubElement(caller,"statements"))
+
+        SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #}
+        self.next()
 
     def compile_parameterList(self,caller):
         """
@@ -371,8 +441,8 @@ def main():
         tk.advance()
         print(tk.token_type(),tk.current_token)
     ce = CompilationEngine('Mytestfor10.jack')
-    root = Element('classVarDec')
-    ce.compile_classVarDec(root)
+    root = Element('let')
+    ce.compile_let(root)
     print()
     print(prettify(root))
 

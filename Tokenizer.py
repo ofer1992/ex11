@@ -73,6 +73,7 @@ class Tokenizer:
                 self.next_char()
                 self.current_token += self.char
             self.current_type = JTok.INT_CONST
+
         self.queue.append((self.current_type, self.current_token))
         if len(self.queue) >=3:
             self.queue.pop(0)
