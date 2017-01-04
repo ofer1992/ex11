@@ -52,27 +52,13 @@ class CompilationEngine:
             self.compile_term(SubElement(caller,TERM))
 
     def compile_expressionList(self,caller):
+        if (self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ")"):
+            return
         self.compile_expression(SubElement(caller,EXPRESSION))
         while self.tokenizer.current_type is JTok.SYMBOL and self.tokenizer.symbol() == ",":
             SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
             self.next()
             self.compile_expression(SubElement(caller,EXPRESSION))
-
-
-
-    # def compile_return(self,caller):
-    #     """
-    #     'return' expression? ';'
-    #     :return:
-    #     """
-    #     SubElement(caller,"keyword").text = self.tokenizer.identifier()
-    #     self.next()
-    #     if self.tokenizer.current_token is JTok.SYMBOL and self.tokenizer.symbol() == ';':
-    #         SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
-    #     else:
-    #         self.compile_expression(SubElement(caller,EXPRESSION))
-    #         SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
-    #     self.next()
 
     def compile_subroutineCall(self,caller,first_token):
         """
@@ -91,8 +77,8 @@ class CompilationEngine:
 
             SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
         self.next()
-        if self.tokenizer.symbol() != ")":
-            self.compile_expressionList(SubElement(caller, "expressionList"))
+        # if self.tokenizer.symbol() != ")":
+        self.compile_expressionList(SubElement(caller, "expressionList"))
         SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
         self.next()
 
@@ -115,6 +101,7 @@ class CompilationEngine:
             type = self.tokenizer.token_type()
             if type is JTok.SYMBOL and (self.tokenizer.symbol() == '.' or self.tokenizer.symbol() == "("):
                 self.compile_subroutineCall(SubElement(caller, SUBROUTINE_CALL),name)
+                return
             elif type is JTok.SYMBOL and self.tokenizer.symbol() == '[':
                 SubElement(caller, IDENTIFIER).text = name
                 SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
@@ -124,6 +111,7 @@ class CompilationEngine:
 
             else:
                 SubElement(caller, IDENTIFIER).text = name
+                return
 
         elif type is JTok.SYMBOL:
             if self.tokenizer.symbol() == '(': #
@@ -135,6 +123,7 @@ class CompilationEngine:
                 SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
                 self.next()
                 self.compile_term(SubElement(caller,TERM))
+                return
         self.next()
 
     def compile_do(self, caller):
@@ -144,22 +133,15 @@ class CompilationEngine:
         :return:
         """
 
-        node = SubElement(caller, 'doStatement')  # set sub root tag
-        node.text = self.tokenizer.current_token
-
+        SubElement(caller, 'keyword').text = self.tokenizer.key_word()
         self.next()
 
-        child = SubElement(node, 'keyword')
-        child.text = self.tokenizer.current_token  # set 'do' as text
-
-        self.next()
         name = self.tokenizer.identifier()
         self.next()
-        self.compile_subroutineCall(node,name)
 
-        g1_child = SubElement(node, 'symbol')  # set ';'
-        g1_child.text = self.tokenizer.current_token
+        self.compile_subroutineCall(SubElement(caller, 'subroutineCall'),name)
 
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ';'
         self.next()
 
     def compile_let(self, caller):
@@ -168,40 +150,30 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        node = SubElement(caller, 'letStatement')  # set sub root tag
-        node.text = self.tokenizer.current_token
-
+        SubElement(caller, 'keyword').text = self.tokenizer.key_word()  # set 'let' as text
         self.next()
 
-        child = SubElement(node, 'keyword')
-        child.text = self.tokenizer.current_token  # set 'let' as text
-
+        SubElement(caller, 'identifier').text = self.tokenizer.identifier()  # varName
         self.next()
 
-        g1_child = SubElement(node, 'identifier')
-        g1_child.text = self.tokenizer.current_token  # varName
-
-        self.next()
-
-        if self.tokenizer.current_token == '[':
-            g2_child = SubElement(node, 'symbol')  # set '['
-            g2_child.text = self.tokenizer.current_token
-            self.next()
-            self.compile_expression(node)
-            g3_child = SubElement(node, 'symbol')  # set ']'
-            g3_child.text = self.tokenizer.current_token
+        if self.tokenizer.symbol() == '[':
+            SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '['
             self.next()
 
-        g2_child = SubElement(node, 'symbol')  # set '='
-        g2_child.text = self.tokenizer.current_token
+            self.compile_expression(SubElement(caller, 'expression'))
+
+            SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ']'
+            self.next()
+
+        # If there is no expression to compile:
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '='
         self.next()
 
-        self.compile_expression(node)
+        self.compile_expression(SubElement(caller, 'expression'))
 
-        g3_child = SubElement(node, 'symbol')  # set ';'
-        g3_child.text = self.tokenizer.current_token
-
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ';'
         self.next()
+
 
     def compile_return(self, caller):
         """
@@ -227,32 +199,25 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        node = SubElement(caller, 'whileStatement')  # set sub root tag
-        node.text = self.tokenizer.current_token
+        SubElement(caller, 'keyword').text = self.tokenizer.key_word()  # set 'while' as text
         self.next()
 
-        child = SubElement(node, 'keyword')
-        child.text = self.tokenizer.current_token  # set 'while' as text
-
-        g1_child = SubElement(node, 'symbol')  # set '('
-        g1_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '('
         self.next()
 
-        self.compile_expression(node)
+        self.compile_expression(SubElement(caller, 'expression'))
 
-        g2_child = SubElement(node, 'symbol')  # set ')'
-        g2_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ')'
         self.next()
 
-        g3_child = SubElement(node, 'symbol')  # set '{'
-        g3_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '{'
         self.next()
 
-        self.compile_statements(node)
+        self.compile_statements(SubElement(caller, 'statements'))
 
-        g3_child = SubElement(node, 'symbol')  # set '}'
-        g3_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '}'
         self.next()
+
 
     def compile_statements(self, caller):
         """
@@ -260,20 +225,18 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        node = SubElement(caller, 'statement')  # set sub root tag
-        node.text = self.tokenizer.current_token
-        self.next()
-
-        if self.tokenizer.current_token == 'do':
-            self.compile_do(node)
-        elif self.tokenizer.current_token == 'while':
-            self.compile_while(node)
-        elif self.tokenizer.current_token == 'let':
-            self.compile_let(node)
-        elif self.tokenizer.current_token == 'return':
-            self.compile_return(node)
-        elif self.tokenizer.current_token == 'if':
-            self.compile_if(node)
+        STATEMENTS = {'do','while','let','return','if'}
+        while(self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() in STATEMENTS):
+            if self.tokenizer.key_word() == 'do':
+                self.compile_do(SubElement(caller, 'doStatement'))
+            elif self.tokenizer.key_word() == 'while':
+                self.compile_while(SubElement(caller, 'whileStatement'))
+            elif self.tokenizer.key_word() == 'let':
+                self.compile_let(SubElement(caller, 'letStatement'))
+            elif self.tokenizer.key_word() == 'return':
+                self.compile_return(SubElement(caller, 'returnStatement'))
+            elif self.tokenizer.key_word() == 'if':
+                self.compile_if(SubElement(caller, 'ifStatement'))
 
     def compile_if(self, caller):
         """
@@ -282,44 +245,36 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        node = SubElement(caller, 'ifStatement')  # set sub root tag
-        node.text = self.tokenizer.current_token
+        SubElement(caller,
+                   'keyword').text = self.tokenizer.key_word()  # set 'if' as text
         self.next()
 
-        child = SubElement(node, 'keyword')
-        child.text = self.tokenizer.current_token  # set 'if' as text
-
-        g1_child = SubElement(node, 'symbol')  # set '('
-        g1_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '('
         self.next()
 
-        self.compile_expression(node)
+        self.compile_expression(SubElement(caller, 'expression'))
 
-        g2_child = SubElement(node, 'symbol')  # set ')'
-        g2_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ')'
         self.next()
 
-        g3_child = SubElement(node, 'symbol')  # set '{'
-        g3_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '{'
         self.next()
 
-        self.compile_statements(node)
+        self.compile_statements(SubElement(caller, 'statements'))
 
-        g3_child = SubElement(node, 'symbol')  # set '}'
-        g3_child.text = self.tokenizer.current_token
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set '}'
         self.next()
 
-        if self.tokenizer.current_token == 'else':
-            g4_child = SubElement(node, 'symbol')  # set '{'
-            g4_child.text = self.tokenizer.current_token
+        if self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == 'else':
+            SubElement(caller,
+                       'symbol').text = self.tokenizer.symbol()  # set '{'
             self.next()
 
-            self.compile_statements(node)
+            self.compile_statements(SubElement(caller, 'statements'))
 
-            g4_child = SubElement(node, 'symbol')  # set '}'
-            g4_child.text = self.tokenizer.current_token
+            SubElement(caller,
+                       'symbol').text = self.tokenizer.symbol()  # set '}'
             self.next()
-
 
     def compile_var_dec(self, caller):
         """
@@ -328,36 +283,86 @@ class CompilationEngine:
         :return:
         """
 
-        node = SubElement(caller, 'keyword')  # set 'var' as first tag
-        node.text = self.tokenizer.current_token
-
+        SubElement(caller, 'keyword').text = self.tokenizer.key_word()  # set var as keyword
         self.next()
 
-        child = SubElement(node, 'keyword')
-        child.text = self.tokenizer.current_token  # type
+        self.compile_list_of_vars(caller)
 
+    def compile_class(self):
+        return
+
+    def compile_list_of_vars(self,caller):
+        """
+        Helper method to compile lists of variables according to
+        type varName (',' varName)*
+        :param caller:
+        :return:
+        """
+        self.compile_type(caller)
+
+        SubElement(caller, 'identifier').text = self.tokenizer.identifier()  # set var name  as identifier
         self.next()
 
-        g1_child = SubElement(node, 'identifier')
-        g1_child.text = self.tokenizer.current_token  # varName
+        while self.tokenizer.symbol() != ';':
+            SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ','
+            self.next()
 
+            SubElement(caller, 'identifier').text = self.tokenizer.identifier()  # set var name
+            self.next()
+
+        SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ';'
         self.next()
 
-        while self.tokenizer.current_token is not ';':
-            if self.tokenizer.current_token is ',':
-                g2_child = SubElement(node, 'symbol')  # set ','
-                g2_child.text = self.tokenizer.current_token
 
-                self.next()
-            else:  # it means its another var name
-                g3_child = SubElement(node, 'identifier')
-                g3_child.text = self.tokenizer.current_token  # varName
+    def compile_classVarDec(self,caller):
+        """
 
-                self.next()
-
-        g4_child = SubElement(g1_child, 'symbol')  # set ';'
-        g4_child.text = self.tokenizer.current_token
+        :param caller:
+        :return:
+        """
+        SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
         self.next()
+
+        self.compile_list_of_vars(caller)
+
+
+
+    def compile_type(self,caller):
+        """
+        Compiles a tag according to type, for variables
+        :param caller:
+        :return:
+        """
+        tag = KEYWORD if self.tokenizer.token_type() is JTok.KEYWORD else IDENTIFIER
+        text = self.tokenizer.key_word() if tag is KEYWORD else self.tokenizer.identifier()
+        SubElement(caller, tag).text = text
+        self.next()
+
+    def compile_subroutine(self,caller):
+        return
+
+    def compile_parameterList(self,caller):
+        """
+
+        :param caller:
+        :return:
+        """
+        if self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ")":
+            return
+
+        self.compile_type(caller)
+
+        SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        self.next()
+        while self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ",":
+            SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            self.next()
+
+            self.compile_type(caller)
+
+            SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
+            self.next()
+
 
 
 def main():
@@ -366,8 +371,8 @@ def main():
         tk.advance()
         print(tk.token_type(),tk.current_token)
     ce = CompilationEngine('Mytestfor10.jack')
-    root = Element('returnStatment')
-    ce.compile_return(root)
+    root = Element('classVarDec')
+    ce.compile_classVarDec(root)
     print()
     print(prettify(root))
 
