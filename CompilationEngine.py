@@ -7,7 +7,11 @@ from xml.dom import minidom
 def prettify(elem):
     """Return a pretty-printed XML string for the Element.
     """
+    for e in elem.iter():
+        if e.text:
+            e.text = " "+e.text+" "
     rough_string = ElementTree.tostring(elem, 'utf-8')
+    print(rough_string)
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ")
 
@@ -21,23 +25,24 @@ IDENTIFIER = "identifier"
 SUBROUTINE_CALL = "subroutineCall"
 
 class CompilationEngine:
-    operators = {'+':'+','-':'-', '*':'*', '/':'/','&':'&amp;','|':'|','<':'&lt;','>':'&gt;','=':'='}
+    operators = {'+':'+','-':'-', '*':'*', '/':'/','&':'&','|':'|','<':'<','>':'>','=':'='}
 
     def __init__(self, source):  # TODO activate parsing?
         self.tokenizer = Tokenizer(source)
         self.tokenizer.has_more_tokens()
         self.tokenizer.advance()
         self.root = Element("class")
-        #self.compile_class(self.root)
+        self.compile_class(self.root)
 
-        # Close file stream
-        #self.outFile.close()
 
     def next(self):
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
 
     def get_xml(self):
+        for e in self.root.iter():
+            if e.text:
+                e.text = " " + e.text + " "
         return tostring(self.root)
 
     def is_op(self, symbol):
@@ -57,6 +62,7 @@ class CompilationEngine:
 
     def compile_expressionList(self,caller):
         if (self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ")"):
+            caller.text = " "
             return
         self.compile_expression(SubElement(caller,EXPRESSION))
         while self.tokenizer.current_type is JTok.SYMBOL and self.tokenizer.symbol() == ",":
@@ -104,7 +110,7 @@ class CompilationEngine:
 
             type = self.tokenizer.token_type()
             if type is JTok.SYMBOL and (self.tokenizer.symbol() == '.' or self.tokenizer.symbol() == "("):
-                self.compile_subroutineCall(SubElement(caller, SUBROUTINE_CALL),name)
+                self.compile_subroutineCall(caller,name)
                 return
             elif type is JTok.SYMBOL and self.tokenizer.symbol() == '[':
                 SubElement(caller, IDENTIFIER).text = name
@@ -143,7 +149,7 @@ class CompilationEngine:
         name = self.tokenizer.identifier()
         self.next()
 
-        self.compile_subroutineCall(SubElement(caller, 'subroutineCall'),name)
+        self.compile_subroutineCall(caller,name)
 
         SubElement(caller, 'symbol').text = self.tokenizer.symbol()  # set ';'
         self.next()
@@ -230,6 +236,7 @@ class CompilationEngine:
         :return:
         """
         STATEMENTS = {'do','while','let','return','if'}
+        caller.text = " "
         while(self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() in STATEMENTS):
             if self.tokenizer.key_word() == 'do':
                 self.compile_do(SubElement(caller, 'doStatement'))
@@ -307,7 +314,7 @@ class CompilationEngine:
         SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
         self.next()
 
-        while self.tokenizer.token_type() is JTok.IDENTIFIER and self.tokenizer.key_word() in {'static','field'}:
+        while self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() in {'static','field'}:
             self.compile_classVarDec(SubElement(caller,"classVarDec"))
 
         while not self.tokenizer.token_type() is JTok.SYMBOL:
@@ -418,6 +425,7 @@ class CompilationEngine:
         :return:
         """
         if self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ")":
+            caller.text = " "
             return
 
         self.compile_type(caller)
@@ -435,18 +443,18 @@ class CompilationEngine:
 
 
 
-def main():
-    tk = Tokenizer('Mytestfor10.jack')
-    while(tk.has_more_tokens()):
-        tk.advance()
-        print(tk.token_type(),tk.current_token)
-    ce = CompilationEngine('Mytestfor10.jack')
-    root = Element('let')
-    ce.compile_let(root)
-    print()
-    print(prettify(root))
-
-
-
-if __name__ == main():
-    main()
+# def main():
+#     tk = Tokenizer('Mytestfor10.jack')
+#     while(tk.has_more_tokens()):
+#         tk.advance()
+#         print(tk.token_type(),tk.current_token)
+#     ce = CompilationEngine('Mytestfor10.jack')
+#     root = Element('class')
+#     ce.compile_class(root)
+#     print()
+#     print(prettify(root))
+#
+#
+#
+# if __name__ == main():
+#     main()
