@@ -1,40 +1,32 @@
-import re
 from JackTokens import JackTokens as JTok
-from xml.etree.ElementTree import Element, SubElement, Comment, tostring
+from JackTokens import *
 
 
 class Tokenizer:
-    """
 
-    """
-    word_pat = re.compile(r'[a-zA-Z_][\w_]*')
-    int_pat = re.compile(r'\d+')
-    str_pat = re.compile(r'^\".*\"$')
-    KEYWORDS = {'class','constructor','function','method','field','static','var','int','char','boolean',
-                'void','true','false','null','this','let','do','if','else','while','return'}
-    SYMBOLS = {'{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&','|',
-               '<', '>', '=', '-', '~'}
-    already_called = False
-    more_tokens_flag = False
-    queue = []
-    lookback_index = -1
+    __already_called = False
+    __more_tokens_flag = False
 
     def __init__(self, file_path):
-        self.file = open(file_path)
-        self.char = ''
-        self.peek = self.file.read(1)
-        self.current_token = None
-        self.current_type = None
+        """
+        Constructor for Tokenizer.
+        :param file_path: path of file to be tokenized
+        """
+        self.__file = open(file_path)
+        self.__char = ''
+        self.__peek = self.__file.read(1)
+        self.__current_token = None
+        self.__current_type = None
 
-    def next_char(self): #TODO: Add buffer?
+    def next_char(self):
         """
         Reads next char in file.
         :return:
         """
-        self.char = self.peek
-        self.peek = self.file.read(1)
+        self.__char = self.__peek
+        self.__peek = self.__file.read(1)
 
-    def advance(self):#
+    def advance(self):
         """
         Gets the next token from the input
         and makes it the current token. This
@@ -43,83 +35,90 @@ class Tokenizer:
         there is no current token.
         :return:
         """
-        if self.lookback_index < -1:
-            self.lookback_index +=1
-            self.current_type, self.current_token = self.queue[self.lookback_index]
-        self.already_called = False
-        if self.char.isalpha(): # keyword or identifier
-            self.current_token = self.char
-            while (self.peek not in self.SYMBOLS) and (not self.peek.isspace() and (self.peek != '')):
+        self.__already_called = False
+
+        if self.__char.isalpha(): # keyword or identifier
+            self.__current_token = self.__char
+            while self.__peek not in SYMBOLS and not self.__peek.isspace() and self.__peek != '':
                 self.next_char()
-                self.current_token += self.char
-            self.current_type = JTok.KEYWORD if self.current_token in self.KEYWORDS else JTok.IDENTIFIER
+                self.__current_token += self.__char
+            self.__current_type = JTok.KEYWORD if self.__current_token in KEYWORDS else JTok.IDENTIFIER
 
-        elif self.char in self.SYMBOLS: # symbol
-            self.current_token = self.char
-            self.current_type = JTok.SYMBOL
+        elif self.__char in SYMBOLS: # symbol
+            self.__current_token = self.__char
+            self.__current_type = JTok.SYMBOL
 
-        elif self.char == "\"": # string constant
-            self.current_token = self.char
+        elif self.__char == "\"": # string constant
+            self.__current_token = self.__char
+            while self.__peek != "\"":
+                self.next_char()
+                self.__current_token += self.__char
             self.next_char()
-            while self.char != "\"":
-                self.current_token += self.char
-                self.next_char()
-            self.current_token += self.char
-            self.current_type = JTok.STRING_CONST
+            self.__current_token += self.__char
+            self.__current_type = JTok.STRING_CONST
 
-        elif self.char.isdigit(): # int constant
-            self.current_token = self.char
-            while self.peek.isdigit():
+        elif self.__char.isdigit(): # int constant
+            self.__current_token = self.__char
+            while self.__peek.isdigit():
                 self.next_char()
-                self.current_token += self.char
-            self.current_type = JTok.INT_CONST
+                self.__current_token += self.__char
+            self.__current_type = JTok.INT_CONST
 
-        self.queue.append((self.current_type, self.current_token))
-        if len(self.queue) >=3:
-            self.queue.pop(0)
+        # When advance terminates, __char is the last character
+            #  read from the file.
+
 
     def has_more_tokens(self):
         """
         Do we have more tokens in the input?
-        :return:
+        :return: true iff there are more tokens to be read
         """
-        if self.lookback_index < -1:
-            return True
-        if self.already_called:
-            return self.more_tokens_flag
-        if self.peek == '':
-            self.more_tokens_flag = False
-        elif self.peek == '/':
+
+        # If has_more_tokens was already called once before advance(), return
+        # the same answer.
+        if self.__already_called:
+            return self.__more_tokens_flag
+
+        if self.__peek == '':  # Reached end of file
+            self.__more_tokens_flag = False
+
+        elif self.__peek == '/':  # Possibility of comment
             self.next_char()
-            if self.peek == '/':
-                while self.char != '\n':
+            if self.__peek == '/':  # // comment
+                while self.__char != '\n' and self.__char != '':
                     self.next_char()
-            elif self.peek == "*":
+                return self.has_more_tokens()
+
+            elif self.__peek == '*':  # /* comment
                 self.next_char()
                 self.next_char()
-                while not (self.char == '*' and self.peek == '/'):
+                while not (self.__char == '*' and self.__peek == '/'):
                     self.next_char()
                 self.next_char()
-            else:
-                self.more_tokens_flag = True
-                return True
-            return self.has_more_tokens()
-        elif self.peek.isspace():
-            while self.peek.isspace():
+                return self.has_more_tokens()
+
+            # / is a symbol
+            self.__more_tokens_flag = True
+            return self.__more_tokens_flag
+
+        elif self.__peek.isspace():  # Eliminating white space
+            while self.__peek.isspace():
                 self.next_char()
             return self.has_more_tokens()
-        else:
+
+        else: # set char to beginning of new token
             self.next_char()
-            self.more_tokens_flag = True
-        self.already_called = True
-        return self.more_tokens_flag
+            self.__more_tokens_flag = True
+
+        self.__already_called = True
+        return self.__more_tokens_flag
 
     def token_type(self):
         """
         Returns the type of the current token.
         :return:
         """
-        return self.current_type
+        return self.__current_type
 
     def key_word(self):
         """
@@ -128,7 +127,7 @@ class Tokenizer:
         when tokenType() is KEYWORD .
         :return:
         """
-        return self.current_token
+        return self.__current_token
 
     def symbol(self):
         """
@@ -137,7 +136,7 @@ class Tokenizer:
         when tokenType() is SYMBOL .
         :return:
         """
-        return self.current_token
+        return self.__current_token
 
     def identifier(self):
         """
@@ -146,7 +145,7 @@ class Tokenizer:
         when tokenType() is IDENTIFIER .
         :return:
         """
-        return self.current_token
+        return self.__current_token
 
     def intVal(self):
         """
@@ -155,7 +154,7 @@ class Tokenizer:
         when tokenType() is INT_CONST .
         :return:
         """
-        return int(self.current_token)
+        return int(self.__current_token)
 
     def string_val(self):
         """
@@ -164,13 +163,9 @@ class Tokenizer:
         Should be called only when
         tokenType() is STRING_CONST .
         """
-        return self.current_token[1:-1]
+        return self.__current_token[1:-1]
 
-    def set_back(self):
-        """
-        Move back tokenizer 1 token
-        :param n:
-        :return:
-        """
-        self.lookback_index = -2
-        self.current_type, self.current_token = self.queue[self.lookback_index]
+# TK = Tokenizer("Mytestfor10.jack")
+# while(TK.has_more_tokens()):
+#     TK.advance()
+#     print(TK.token_type(),TK.identifier())
