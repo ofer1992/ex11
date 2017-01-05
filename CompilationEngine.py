@@ -45,9 +45,9 @@ class CompilationEngine:
         Returns a textual XML representation of the program structure.
         :return:
         """
-        for e in self.root.iter():
-            if e.text:
-                e.text = " " + e.text + " "
+        # for e in self.root.iter():
+        #     if e.text:
+        #         e.text = " " + e.text + " "
         return tostring(self.root)
 
     def compile_expression(self,caller):
@@ -304,6 +304,10 @@ class CompilationEngine:
 
         if self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == 'else':
             SubElement(caller,
+                       KEYWORD).text = self.tokenizer.key_word()  # set 'else' as text
+            self.next()
+
+            SubElement(caller,
                        SYMBOL).text = self.tokenizer.symbol()  # set '{'
             self.next()
 
@@ -476,9 +480,9 @@ def main():
         print(tk.token_type(),tk.identifier())
     ce = CompilationEngine('Mytestfor10.jack')
     root = Element('do')
-    ce.compile_subroutineBody(root)
-    print()
-    print(prettify(root))
+    ce.compile_if(root)
+    # print()
+    # print(prettify(root))
 
 
 

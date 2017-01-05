@@ -37,7 +37,7 @@ class Tokenizer:
         """
         self.__already_called = False
 
-        if self.__char.isalpha(): # keyword or identifier
+        if self.__char.isalpha() or self.__char == "_": # keyword or identifier
             self.__current_token = self.__char
             while self.__peek not in SYMBOLS and not self.__peek.isspace() and self.__peek != '':
                 self.next_char()
