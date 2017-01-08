@@ -13,20 +13,23 @@ class JackAnalyzer:
     """ translate a vm file/directory to an asm file """
 
     def __init__(self, inputData):
+
         # Get files to process
         if os.path.isfile(inputData):
+
             self.files = [inputData]
         else:
+
             self.files = glob.glob(inputData + INPUT_FILE_SUFFIX)
 
         # engine all file
         for filePath in self.files: #TODO
+
             print(filePath)
             comp = CompilationEngine(filePath)
             f = open(filePath[:-5]+OUTPUT_FILE_SUFFIX,'w')
             f.write(comp.get_xml().decode())
             f.close()
-
 
 
 def main():
