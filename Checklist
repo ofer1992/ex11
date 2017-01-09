@@ -1,2 +1,7 @@
 term - partially converted
 expression - converted, should be working
+expressions
+subroutineCall
+return
+subroutineDec - top-down needs implementation of inner calls
+classDec - very primitive

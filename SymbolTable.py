@@ -33,7 +33,7 @@ class SymbolTable:
         :return:
         """
         self.subroutine_table = {}
-        self.counter[Kind.Kind.ARG], self.counter[Kind.Kind.VAR] = 0, 0
+        self.counter[Kind.arg], self.counter[Kind.var] = 0, 0
 
     def define(self,name, type, kind):
         """

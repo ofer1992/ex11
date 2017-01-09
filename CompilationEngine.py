@@ -28,7 +28,11 @@ IDENTIFIER = "identifier"
 SUBROUTINE_CALL = "subroutineCall"
 CLASS = "class"
 STATEMENTS = "statements"
+
 CONSTANT = "constant"
+TEMP = "temp"
+POINTER = "pointer"
+ARGUMENT = "argument"
 
 
 class CompilationEngine:
@@ -43,15 +47,17 @@ class CompilationEngine:
         self.arithmetic_op = {}
         self.init_op()
         self.root = Element(CLASS)
-        self.compile_expression(self.root)
+        self.class_name = "TEMP"
+        self.compile_class(self.root)
+
         #self.compile_class(self.root)
 
     def init_op(self):
         # TODO: add mult and divide
         self.arithmetic_op = {'+': "add",
                          '-': "sub",
-                         '*': "TEMP",
-                         '/': "TEMP",
+                         '*': "call Math.multiply 2",
+                         '/': "call Math.divide 2",
                          '&': "and",
                          '|': "or",
                         }
@@ -92,16 +98,20 @@ class CompilationEngine:
         :param caller:
         :return:
         """
+        num_of_args = 0
         #  if expression list is empty
         if self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ")":
             caller.text = " "
-            return
+            return num_of_args
 
+        num_of_args += 1
         self.compile_expression(SubElement(caller,EXPRESSION))
         while self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ",":
-            SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            num_of_args += 1
             self.next()
             self.compile_expression(SubElement(caller,EXPRESSION))
+        return num_of_args
 
     def compile_subroutineCall(self,caller,first_token):
         """
@@ -111,21 +121,31 @@ class CompilationEngine:
         :param first_token:
         :return:
         """
-        SubElement(caller, IDENTIFIER).text = first_token
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
+        #SubElement(caller, IDENTIFIER).text = first_token
+        func_name = first_token
+        #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
 
         if self.tokenizer.symbol() == '.':
             self.next()
+            if self.symbols.kind_of(func_name): # If first token is var name
+                segment = self.symbols.kind_of(func_name)
+                index = self.symbols.index_of(func_name)
+                self.writer.write_push(segment,index)
+                func_name = self.symbols.type_of(func_name)
 
-            SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
+            func_name = func_name+"."+self.tokenizer.identifier()
+            #SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
             self.next()
 
-            SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+        else:
+            func_name = self.class_name+"."+func_name
 
         self.next()
-        self.compile_expressionList(SubElement(caller, EXPRESSION_LIST))
+        num_of_args = self.compile_expressionList(SubElement(caller, EXPRESSION_LIST))
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
+        self.writer.write_call(func_name,num_of_args)
+        #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
         self.next()
 
 
@@ -153,6 +173,8 @@ class CompilationEngine:
             elif self.tokenizer.key_word() == "true": # Assuming valid input, it must be true
                 self.writer.write_push(CONSTANT, 1)
                 self.writer.write_arithmetic("neg")
+            elif self.tokenizer.key_word() == "this":
+                self.writer.write_push(POINTER, 0)
             else:
                 print("unexpected")
 
@@ -216,15 +238,15 @@ class CompilationEngine:
         :return:
         """
 
-        SubElement(caller, KEYWORD).text = self.tokenizer.key_word()
+        #SubElement(caller, KEYWORD).text = self.tokenizer.key_word()
         self.next()
 
         name = self.tokenizer.identifier()
         self.next()
 
         self.compile_subroutineCall(caller,name)
-
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ';'
+        self.writer.write_pop(TEMP,0)
+        #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ';'
         self.next()
 
     def compile_let(self, caller):
@@ -264,16 +286,19 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        SubElement(caller,KEYWORD).text = self.tokenizer.identifier()
+        #SubElement(caller,KEYWORD).text = self.tokenizer.identifier()
         self.next()
 
         if self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ";":
-            SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            self.writer.write_push(CONSTANT, 0)
+            self.writer.write_return()
             self.next()
             return
 
         self.compile_expression(SubElement(caller,EXPRESSION))
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
+        self.writer.write_return()
+        #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
         self.next()
 
     def compile_while(self, caller):
@@ -387,6 +412,7 @@ class CompilationEngine:
         self.next()
 
         SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        self.class_name = self.tokenizer.identifier()
         self.next()
 
         SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
@@ -461,7 +487,8 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
+        #SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
+        subroutine_type = self.tokenizer.key_word()
         self.next()
 
         if self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "void":
@@ -470,18 +497,42 @@ class CompilationEngine:
         else:
             self.compile_type(caller)
 
-        SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        #SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        name = self.class_name+"."+self.tokenizer.identifier()
+        self.symbols.start_subroutine()
         self.next()
 
-        SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
         self.next()
 
         self.compile_parameterList(SubElement(caller,"parameterList"))
 
-        SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
         self.next()
 
-        self.compile_subroutineBody(SubElement(caller,"subroutineBody"))
+        #self.compile_subroutineBody(SubElement(caller,"subroutineBody"))
+        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
+        self.next()
+
+        num_of_locals = 0
+        while self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "var":
+            num_of_locals += self.compile_var_dec(SubElement(caller,"varDec"))
+
+        self.writer.write_function(name,num_of_locals)
+
+        if subroutine_type == "constructor":
+            self.writer.write_call("Memory.alloc", self.symbols.var_count(Kind.field))
+            self.writer.write_pop(POINTER,0)
+
+        elif subroutine_type == "method":
+            self.writer.write_push(ARGUMENT,0)
+            self.writer.write_pop(POINTER,0)
+
+
+        self.compile_statements(SubElement(caller,"statements"))
+
+        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #}
+        self.next()
 
 
 
