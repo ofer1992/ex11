@@ -7,16 +7,6 @@ from SymbolTable import SymbolTable
 from SymbolTable import Kind
 from VMWriter import VMWriter
 
-def prettify(elem):
-    """Return a pretty-printed XML string for the Element.
-    """
-    for e in elem.iter():
-        if e.text:
-            e.text = " "+e.text+" "
-    rough_string = tostring(elem, 'utf-8')
-    reparsed = minidom.parseString(rough_string)
-    return reparsed.toprettyxml(indent="  ")
-
 EXPRESSION = "expression"
 EXPRESSION_LIST = "expressionList"
 SYMBOL = "symbol"
@@ -48,12 +38,11 @@ class CompilationEngine:
         self.init_op()
         self.root = Element(CLASS)
         self.class_name = "TEMP"
-        self.compile_class(self.root)
+        self.compile_subroutine(self.root)
 
         #self.compile_class(self.root)
 
     def init_op(self):
-        # TODO: add mult and divide
         self.arithmetic_op = {'+': "add",
                          '-': "sub",
                          '*': "call Math.multiply 2",
@@ -65,16 +54,6 @@ class CompilationEngine:
     def next(self):
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
-
-    def get_xml(self):
-        """
-        Returns a textual XML representation of the program structure.
-        :return:
-        """
-        # for e in self.root.iter():
-        #     if e.text:
-        #         e.text = " " + e.text + " "
-        return tostring(self.root)
 
     def compile_expression(self,caller):
         """
@@ -94,9 +73,10 @@ class CompilationEngine:
 
     def compile_expressionList(self,caller):
         """
-
+            compiles a list of expressions
         :param caller:
-        :return:
+        :return: num_of_args - number of expressions in expressions list.
+        used by function call
         """
         num_of_args = 0
         #  if expression list is empty
@@ -129,6 +109,7 @@ class CompilationEngine:
             self.next()
             if self.symbols.kind_of(func_name): # If first token is var name
                 segment = self.symbols.kind_of(func_name)
+                segment = Kind.get_segment(segment)
                 index = self.symbols.index_of(func_name)
                 self.writer.write_push(segment,index)
                 func_name = self.symbols.type_of(func_name)
@@ -204,7 +185,7 @@ class CompilationEngine:
                 kind = self.symbols.kind_of(name)
                 index = self.symbols.index_of(name)
                 if kind is not None:
-                    self.writer.write_push(kind,index)
+                    self.writer.write_push(kind.get_segment(),index)
                 else:
                     print("unexpected")
 
@@ -255,29 +236,31 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        SubElement(caller, KEYWORD).text = self.tokenizer.key_word()  # set 'let' as text
+        self.next() # skip 'let'
+
+        varName = self.tokenizer.identifier()
         self.next()
 
-        SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()  # varName
-        self.next()
+        kind = self.symbols.kind_of(varName)
+        index = self.symbols.index_of(varName)
 
-        if self.tokenizer.symbol() == '[':
-            SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '['
-            self.next()
+        if self.tokenizer.symbol() == '[': # if array
+            self.next() # skip [
 
             self.compile_expression(SubElement(caller, EXPRESSION))
+            self.writer.write_push(kind.get_segment(),index)
+            self.writer.write_arithmetic("add")
+            self.writer.write_pop(POINTER,1)
+            kind = "that"
+            index = 0
+            self.next() #skip ]
 
-            SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ']'
-            self.next()
-
-        # If there is no expression to compile:
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '='
-        self.next()
+        self.next() # skip =
 
         self.compile_expression(SubElement(caller, EXPRESSION))
+        self.writer.write_pop(kind.get_segment(),index)
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ';'
-        self.next()
+        self.next() # skip ;
 
 
     def compile_return(self, caller):
@@ -397,10 +380,10 @@ class CompilationEngine:
         """
 
         kind = self.tokenizer.key_word()
-        SubElement(caller, KEYWORD).text = kind  # set var as keyword
+        #SubElement(caller, KEYWORD).text = kind  # set var as keyword
         self.next()
 
-        self.compile_list_of_vars(caller, "var", Kind[kind])
+        return self.compile_list_of_vars(caller, "var", Kind[kind])
 
     def compile_class(self,caller):
         """
@@ -435,25 +418,28 @@ class CompilationEngine:
         :param caller:
         :return:
         """
+        num_of_vars = 0
         type = self.compile_type(caller)
         self.symbols.define(self.tokenizer.identifier(),type,kind)
-        text = category+", defined, "+type+", "+kind.name+", "+str(self.symbols.index_of(self.tokenizer.identifier()))
-        SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()+", "+text  # set var name  as identifier
+        num_of_vars += 1
+        #text = category+", defined, "+type+", "+kind.name+", "+str(self.symbols.index_of(self.tokenizer.identifier()))
+        #SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()+", "+text  # set var name  as identifier
         self.next()
 
         while self.tokenizer.symbol() != ';':
-            SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ','
+            #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ','
             self.next()
 
             self.symbols.define(self.tokenizer.identifier(), type, kind)
-            text = category + ", defined, " + type + ", " + kind.name + ", " + str(
-                self.symbols.index_of(self.tokenizer.identifier()))
-            SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()+", "+text  # set var name
+            num_of_vars += 1
+            #text = category + ", defined, " + type + ", " + kind.name + ", " + str(
+            #    self.symbols.index_of(self.tokenizer.identifier()))
+            #SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()+", "+text  # set var name
             self.next()
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ';'
+        #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ';'
         self.next()
-
+        return num_of_vars
 
     def compile_classVarDec(self,caller):
         """
@@ -462,7 +448,7 @@ class CompilationEngine:
         :return:
         """
         kind = self.tokenizer.key_word()
-        SubElement(caller,KEYWORD).text = kind
+        #SubElement(caller,KEYWORD).text = kind
         self.next()
 
         self.compile_list_of_vars(caller, kind, Kind[kind])
@@ -487,32 +473,28 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        #SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
+
         subroutine_type = self.tokenizer.key_word()
         self.next()
 
+        # Just to skip void or type
         if self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "void":
             SubElement(caller,KEYWORD).text = self.tokenizer.key_word()
             self.next()
         else:
             self.compile_type(caller)
 
-        #SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
         name = self.class_name+"."+self.tokenizer.identifier()
         self.symbols.start_subroutine()
         self.next()
 
-        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
-        self.next()
+        self.next() # Skips (
 
         self.compile_parameterList(SubElement(caller,"parameterList"))
 
-        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
-        self.next()
+        self.next() # Skips )
 
-        #self.compile_subroutineBody(SubElement(caller,"subroutineBody"))
-        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
-        self.next()
+        self.next() # Skips {
 
         num_of_locals = 0
         while self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "var":
@@ -528,30 +510,9 @@ class CompilationEngine:
             self.writer.write_push(ARGUMENT,0)
             self.writer.write_pop(POINTER,0)
 
-
         self.compile_statements(SubElement(caller,"statements"))
 
-        #SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #}
-        self.next()
-
-
-
-    def compile_subroutineBody(self,caller):
-        """
-        Compiles a subroutine body
-        :param caller:
-        :return:
-        """
-        SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #{
-        self.next()
-
-        while self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == "var":
-            self.compile_var_dec(SubElement(caller,"varDec"))
-
-        self.compile_statements(SubElement(caller,"statements"))
-
-        SubElement(caller,SYMBOL).text = self.tokenizer.symbol() #}
-        self.next()
+        self.next() # Skips }
 
     def compile_parameterList(self,caller):
         """
@@ -563,18 +524,24 @@ class CompilationEngine:
             caller.text = " "
             return
 
-        self.compile_type(caller)
+        type = self.compile_type(caller)
+        name = self.tokenizer.identifier()
 
-        SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        # SubElement(caller,IDENTIFIER).text = self.tokenizer.identifier()
+        self.symbols.define(name,type,Kind.arg)
         self.next()
+
+
         while self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ",":
-            SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            # SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
+            self.next()
+            print(self.symbols.subroutine_table)
+            type = self.compile_type(caller)
+            name = self.tokenizer.identifier()
+            self.symbols.define(name, type, Kind.arg)
+            #SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
             self.next()
 
-            self.compile_type(caller)
-
-            SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
-            self.next()
 
 
 

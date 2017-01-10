@@ -1,4 +1,4 @@
-
+from SymbolTable import Kind
 class VMWriter:
     """
     Emits VM commands into a file, using the VM command syntax.

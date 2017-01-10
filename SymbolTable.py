@@ -6,6 +6,16 @@ class Kind(Enum):
     arg = 2
     var = 3
 
+    def get_segment(self):
+        if self is Kind.var:
+            return "local"
+        elif self is Kind.field:
+            return "this"
+        elif self is Kind.static:
+            return "static"
+        elif self is Kind.arg:
+            return "argument"
+        return None
 
 TYPE_CELL = 0
 KIND_CELL = 1
