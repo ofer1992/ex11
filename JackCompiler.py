@@ -28,8 +28,8 @@ class JackAnalyzer:
             print(filePath)
             comp = CompilationEngine(filePath)
             f = open(filePath[:-5]+OUTPUT_FILE_SUFFIX,'w')
-            f.write(comp.get_xml().decode())
-            f.close()
+            # f.write(comp.get_xml().decode())
+            # f.close()
 
 
 def main():

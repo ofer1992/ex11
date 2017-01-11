@@ -29,6 +29,8 @@ class CompilationEngine:
 
 
     def __init__(self, source):
+        self.if_counter = 0
+        self.while_counter = 0
         self.tokenizer = Tokenizer(source)
         self.tokenizer.has_more_tokens()
         self.tokenizer.advance()
@@ -38,7 +40,8 @@ class CompilationEngine:
         self.init_op()
         self.root = Element(CLASS)
         self.class_name = "TEMP"
-        self.compile_subroutine(self.root)
+        self.compile_class(self.root)
+        self.writer.close()
 
         #self.compile_class(self.root)
 
@@ -49,6 +52,9 @@ class CompilationEngine:
                          '/': "call Math.divide 2",
                          '&': "and",
                          '|': "or",
+                              '<': "lt",
+                              '>': "gt",
+                              '=': "eq"
                         }
 
     def next(self):
@@ -104,7 +110,7 @@ class CompilationEngine:
         #SubElement(caller, IDENTIFIER).text = first_token
         func_name = first_token
         #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
-
+        is_method = 0
         if self.tokenizer.symbol() == '.':
             self.next()
             if self.symbols.kind_of(func_name): # If first token is var name
@@ -113,6 +119,7 @@ class CompilationEngine:
                 index = self.symbols.index_of(func_name)
                 self.writer.write_push(segment,index)
                 func_name = self.symbols.type_of(func_name)
+                is_method = 1
 
             func_name = func_name+"."+self.tokenizer.identifier()
             #SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
@@ -121,9 +128,11 @@ class CompilationEngine:
             #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
         else:
             func_name = self.class_name+"."+func_name
+            self.writer.write_push(POINTER,0)
+            is_method = 1
 
         self.next()
-        num_of_args = self.compile_expressionList(SubElement(caller, EXPRESSION_LIST))
+        num_of_args = self.compile_expressionList(SubElement(caller, EXPRESSION_LIST))+is_method
 
         self.writer.write_call(func_name,num_of_args)
         #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
@@ -143,8 +152,13 @@ class CompilationEngine:
             self.next()
 
         elif type is JTok.STRING_CONST:
-            #TODO : When is this the case
-            SubElement(caller, STRING_CONSTANT).text = self.tokenizer.string_val()
+
+            string_val = self.tokenizer.string_val()
+            self.writer.write_push(CONSTANT,len(string_val))
+            self.writer.write_call("String.new", 1)
+            for c in string_val:
+                self.writer.write_push(CONSTANT,ord(c))
+                self.writer.write_call("String.appendChar", 2)
             self.next()
 
         elif type is JTok.KEYWORD:
@@ -171,13 +185,22 @@ class CompilationEngine:
                     self.compile_subroutineCall(caller,name)
 
             elif type is JTok.SYMBOL and self.tokenizer.symbol() == '[': #TODO: Arrays, later
-                SubElement(caller, IDENTIFIER).text = name
-                SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
+                # SubElement(caller, IDENTIFIER).text = name
+                # SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
                 self.next()
 
                 self.compile_expression(SubElement(caller, EXPRESSION))
+                kind = self.symbols.kind_of(name)
+                index = self.symbols.index_of(name)
+                if kind is not None:
+                    self.writer.write_push(kind.get_segment(),index)
+                else:
+                    print("unexpected")
+                self.writer.write_arithmetic("add")
+                self.writer.write_pop(POINTER,1)
+                self.writer.write_push("that",0)
 
-                SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
+                #SubElement(caller, SYMBOL).text = self.tokenizer.symbol()
                 self.next()
 
             else:
@@ -242,23 +265,28 @@ class CompilationEngine:
         self.next()
 
         kind = self.symbols.kind_of(varName)
+        kind = kind.get_segment()
         index = self.symbols.index_of(varName)
 
         if self.tokenizer.symbol() == '[': # if array
             self.next() # skip [
 
             self.compile_expression(SubElement(caller, EXPRESSION))
-            self.writer.write_push(kind.get_segment(),index)
+            self.writer.write_push(kind,index)
             self.writer.write_arithmetic("add")
+            self.next() # skip ]
+            self.next() # skip =
+            self.compile_expression(SubElement(caller, EXPRESSION))
+            self.writer.write_pop(TEMP,0)
             self.writer.write_pop(POINTER,1)
-            kind = "that"
-            index = 0
-            self.next() #skip ]
+            self.writer.write_push(TEMP,0)
+            self.writer.write_pop("that",0)
 
-        self.next() # skip =
+        else:
+            self.next() # skip =
 
-        self.compile_expression(SubElement(caller, EXPRESSION))
-        self.writer.write_pop(kind.get_segment(),index)
+            self.compile_expression(SubElement(caller, EXPRESSION))
+            self.writer.write_pop(kind,index)
 
         self.next() # skip ;
 
@@ -290,24 +318,26 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        SubElement(caller, KEYWORD).text = self.tokenizer.key_word()  # set 'while' as text
-        self.next()
+        while_index = self.while_counter
+        self.while_counter += 1
+        self.writer.write_label("WHILE_EXP"+str(while_index))
+        self.next() # skip while
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '('
-        self.next()
+        self.next() # skip (
 
         self.compile_expression(SubElement(caller, EXPRESSION))
+        self.writer.write_arithmetic("not")
+        self.writer.write_if("WHILE_END"+str(while_index))
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ')'
-        self.next()
+        self.next() # skip )
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '{'
-        self.next()
+        self.next() # skip {
 
         self.compile_statements(SubElement(caller, STATEMENTS))
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '}'
-        self.next()
+        self.writer.write_goto("WHILE_EXP"+str(while_index))
+        self.writer.write_label("WHILE_END"+str(while_index))
+        self.next() # skip }
 
 
     def compile_statements(self, caller):
@@ -337,40 +367,36 @@ class CompilationEngine:
         :param caller:
         :return:
         """
-        SubElement(caller,
-                   KEYWORD).text = self.tokenizer.key_word()  # set 'if' as text
+
+        self.next()  # (
+        self.compile_expression(caller)
+        self.next()  # {
+
+        if_index = self.if_counter
+        self.if_counter += 1
+        self.writer.write_if("IF_TRUE" + str(if_index))
+
+        self.writer.write_goto("IF_FALSE" + str(if_index))
+        self.writer.write_label("IF_TRUE" + str(if_index))
+
+        self.compile_statements(caller)
+
         self.next()
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '('
-        self.next()
+        if self.tokenizer.key_word() == 'else':
+            self.writer.write_goto("IF_END" + str(if_index))
+            self.writer.write_label("IF_FALSE" + str(if_index))
 
-        self.compile_expression(SubElement(caller, EXPRESSION))
+            self.next()  # else
+            self.next()  # {
+            self.compile_statements(caller)
+            self.next()  # }
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set ')'
-        self.next()
+            self.writer.write_label("IF_END" + str(if_index))
+        else:
+            self.writer.write_label("IF_FALSE" + str(if_index))
 
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '{'
-        self.next()
-
-        self.compile_statements(SubElement(caller, STATEMENTS))
-
-        SubElement(caller, SYMBOL).text = self.tokenizer.symbol()  # set '}'
-        self.next()
-
-        if self.tokenizer.token_type() is JTok.KEYWORD and self.tokenizer.key_word() == 'else':
-            SubElement(caller,
-                       KEYWORD).text = self.tokenizer.key_word()  # set 'else' as text
-            self.next()
-
-            SubElement(caller,
-                       SYMBOL).text = self.tokenizer.symbol()  # set '{'
-            self.next()
-
-            self.compile_statements(SubElement(caller, STATEMENTS))
-
-            SubElement(caller,
-                       SYMBOL).text = self.tokenizer.symbol()  # set '}'
-            self.next()
+        return
 
     def compile_var_dec(self, caller):
         """
@@ -489,7 +515,8 @@ class CompilationEngine:
         self.next()
 
         self.next() # Skips (
-
+        #if subroutine_type == "method":
+        #    self.symbols.define("this", "", Kind.arg)
         self.compile_parameterList(SubElement(caller,"parameterList"))
 
         self.next() # Skips )
@@ -503,7 +530,8 @@ class CompilationEngine:
         self.writer.write_function(name,num_of_locals)
 
         if subroutine_type == "constructor":
-            self.writer.write_call("Memory.alloc", self.symbols.var_count(Kind.field))
+            self.writer.write_push(CONSTANT, self.symbols.var_count(Kind.field))
+            self.writer.write_call("Memory.alloc", 1)
             self.writer.write_pop(POINTER,0)
 
         elif subroutine_type == "method":
@@ -535,7 +563,6 @@ class CompilationEngine:
         while self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() == ",":
             # SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
             self.next()
-            print(self.symbols.subroutine_table)
             type = self.compile_type(caller)
             name = self.tokenizer.identifier()
             self.symbols.define(name, type, Kind.arg)
@@ -555,7 +582,7 @@ def main():
     # ce.compile_class(root)
     # print()
     # print(prettify(root))
-    ce = CompilationEngine('Mytestfor10.jack')
+    ce = CompilationEngine('/home/ofer/nand2tetris/projects/11')
 
 
 

@@ -8,3 +8,5 @@ compileVarDec
 classDec - very primitive
 parameterList - can you declare more than one var with same name?
 compileLet
+compileIf
+compileWhile
