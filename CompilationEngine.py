@@ -39,11 +39,9 @@ class CompilationEngine:
         self.arithmetic_op = {}
         self.init_op()
         self.root = Element(CLASS)
-        self.class_name = "TEMP"
+        self.class_name = ""
         self.compile_class(self.root)
         self.writer.close()
-
-        #self.compile_class(self.root)
 
     def init_op(self):
         self.arithmetic_op = {'+': "add",
@@ -58,6 +56,10 @@ class CompilationEngine:
                         }
 
     def next(self):
+        """
+        Proceed to the next token.
+        :return:
+        """
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
 
@@ -70,10 +72,10 @@ class CompilationEngine:
         op_stack = []
         self.compile_term(SubElement(caller,TERM))
         while self.tokenizer.token_type() is JTok.SYMBOL and self.tokenizer.symbol() in OPERATORS:
-            #SubElement(caller,SYMBOL).text = self.tokenizer.symbol()
             op_stack.append(self.tokenizer.symbol())
             self.next()
             self.compile_term(SubElement(caller,TERM))
+
         while op_stack:
             self.writer.write_arithmetic(self.arithmetic_op[op_stack.pop()])
 
@@ -515,8 +517,8 @@ class CompilationEngine:
         self.next()
 
         self.next() # Skips (
-        #if subroutine_type == "method":
-        #    self.symbols.define("this", "", Kind.arg)
+        if subroutine_type == "method":
+            self.symbols.define("this", "", Kind.arg)
         self.compile_parameterList(SubElement(caller,"parameterList"))
 
         self.next() # Skips )
@@ -569,22 +571,3 @@ class CompilationEngine:
             #SubElement(caller, IDENTIFIER).text = self.tokenizer.identifier()
             self.next()
 
-
-
-
-def main():
-    # tk = Tokenizer('Mytestfor10.jack')
-    # # while(tk.has_more_tokens()):
-    # #     tk.advance()
-    # #     print(tk.token_type(),tk.identifier())
-    # ce = CompilationEngine('Mytestfor10.jack')
-    # root = Element('class')
-    # ce.compile_class(root)
-    # print()
-    # print(prettify(root))
-    ce = CompilationEngine('/home/ofer/nand2tetris/projects/11')
-
-
-
-if __name__ == "__main__":
-    main()
